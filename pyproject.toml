@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "emoji>=2.14.1",
+    "matplotlib>=3.10.3",
     "nltk>=3.9.1",
     "pandas>=2.2.3",
     "tdqm>=0.0.1",

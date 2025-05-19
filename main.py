@@ -1,4 +1,4 @@
-from operator import index
+import os
 import pandas as pd
 
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 tqdm.pandas()
 
-CSV_FILEPATH = './data/bitcoin_tweets.csv'
+CSV_FILEPATH = './data/bitcoin_tweets1000000.csv'
 
 def import_data() -> pd.DataFrame:
     print(f"Importing CSV data from {CSV_FILEPATH} ...")
@@ -23,12 +23,10 @@ def import_data() -> pd.DataFrame:
             index_col=0,
             parse_dates=True,
         )
-
-        # df: pd.DataFrame = pd.read_csv(CSV_FILEPATH, encoding='utf-8', index_col=0)
-        print(df.columns.values)
         return df
     except FileNotFoundError as e:
         print(f"{e}: Couldn't find an existing CSV...")
+        quit()
 
 def tokenise_and_lemmatise(text: str) -> str:
     tokens: list[str] = word_tokenize(text)
@@ -40,20 +38,24 @@ def tokenise_and_lemmatise(text: str) -> str:
     processed_text = ' '.join(lemmatised_tokens)    
     return processed_text
 
-analyser = SentimentIntensityAnalyzer()
-def get_sentiment(text: str) -> int:
-    scores = analyser.polarity_scores(text)
-    sentiment = 1 if scores['pos'] > 0 else 0
-    return sentiment
-
 def data_pre_process(df: pd.DataFrame) -> pd.DataFrame:
     # Filter out any unverified tweets that may come from bots
     # df = df[df['user_verified'] == True]
     # print(f"Filtered out user_verified - DF length: {len(df)}")
 
+    # Filter for sources from 'Twitter for Android/iPhone/Mac/iPad'
+    print("Filtering out unreliable sources...")
+    allowed_sources = [
+        'Twitter for Android',
+        'Twitter for iPhone',
+        'Twitter for iPad',
+        'Twitter for Mac',
+    ]
+    df = df[df['source'].isin(allowed_sources)]
+
     # Filter out any retweets to reduce the chance of data duplication bias
+    print(f"Filtering out retweets...")
     df = df[df['is_retweet'] == False]
-    print(f"Filtered out is_retweet - DF length: {len(df)}")
 
     # Remove any emoji characters
     print("Filtering out emojis...")
@@ -73,28 +75,53 @@ def data_pre_process(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+analyser = SentimentIntensityAnalyzer()
+def get_sentiment(text: str) -> int:
+    scores = analyser.polarity_scores(text)
+    sentiment = 1 if abs(scores['compound']) > 0.5 else 0
+    return sentiment
+
+def aggregate_by_date(df: pd.DataFrame) -> pd.DataFrame:
+    df['date'] = pd.to_datetime(df['date'])
+    df['year'] = df['date'].dt.year
+    df['month'] = df['date'].dt.month
+    df['day'] = df['date'].dt.day
+    df = df.groupby(['year', 'month', 'day'], as_index=False)['sentiment'].sum()
+
+    return df
+
 def main() -> None:
     print("Data pipeline starting...")
+    
+    if not os.path.isfile('./out/preprocess_out.csv'):
+        df = import_data()
 
-    df: pd.DataFrame = import_data()
+        # Grab relevant columns
+        df = df[['date', 'text', 'source', 'is_retweet', 'user_verified']]
 
-    # Grab relevant columns
-    df = df[['date', 'text', 'is_retweet', 'user_verified']]
+        df = data_pre_process(df)
 
-    df = data_pre_process(df)
+        # save out preprocessed data to speed up re-runs
+        df.to_csv('./out/preprocess_out.csv')
+    else:
+        df: pd.DataFrame = pd.read_csv('./out/preprocess_out.csv',
+            encoding='utf-8',
+            index_col=0,
+            parse_dates=True,
+        )
+        print('Preprocessed data exists! Skipping...')
 
     # Sentiment analysis of dataframe
+    print('Scoring data by sentiment')
     df['sentiment'] = (
-            df['text']
-            .astype(str)
-            .progress_apply(get_sentiment))
+        df['text']
+        .astype(str)
+        .progress_apply(get_sentiment)
+    )
 
     # Group data by month and day
     print('Grouping data by day')
-    df['date'] = pd.to_datetime(df['date'])
-    df['month'] = df['date'].dt.month
-    df['day'] = df['date'].dt.day
-    df = df.groupby(['month', 'day'], as_index=False)['sentiment'].sum()
+    df = aggregate_by_date(df)
 
     # Save processed data into out.csv
     df.to_csv('./out/out.csv') 
