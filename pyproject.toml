@@ -1,0 +1,12 @@
+[project]
+name = "bitcoin-sentiment-analyser"
+version = "0.1.0"
+description = "A bitcoin sentiment analyser using NLTK"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "emoji>=2.14.1",
+    "nltk>=3.9.1",
+    "pandas>=2.2.3",
+    "tdqm>=0.0.1",
+]
