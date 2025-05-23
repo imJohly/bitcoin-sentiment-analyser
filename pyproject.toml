@@ -8,6 +8,12 @@ dependencies = [
     "emoji>=2.14.1",
     "matplotlib>=3.10.3",
     "nltk>=3.9.1",
+    # "numpy>=2.2.6",
+	"numpy==1.26.4",
     "pandas>=2.2.3",
+    "pmdarima>=2.0.4",
+    "pyqt5>=5.15.11",
+    "scipy>=1.15.3",
+    "statsmodels>=0.14.4",
     "tdqm>=0.0.1",
 ]
